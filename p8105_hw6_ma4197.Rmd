@@ -26,9 +26,50 @@ murder_df=
 twp_data %>%
 janitor::clean_names() %>% 
 mutate(
-  state= replace(state, state == "AL", "OK"),
   state = replace(state, state== "wI", "WI")) %>% 
 mutate(
-  city_state= paste(city, state, sep= ","))
+  city_state= paste(city, state, sep= ",")) %>% 
+mutate(
+  victim_age = as.numeric(victim_age)) %>% 
+filter(!city_state %in% c("Dallas,TX","Phoenix,AZ", "Kansas City,MO","Tulsa,AL" )) %>% 
+filter(victim_race %in% c("White","Black")) %>% 
+mutate(
+    resolved = as.numeric(disposition == "Closed by arrest"))
+
+```
+*Checks*
+```{r}
+murder_df %>% 
+  group_by(city_state) %>% 
+  count(city_state)
+```
+```{r}
+murder_df %>% 
+  summarise(victim_age)
+```
+```{r}
+murder_df %>% 
+  count(victim_race)
+```
+*Linear Model*
+
+```{r}
+balt_murder_logfit = 
+  murder_df %>% 
+  filter(city_state == "Baltimore,MD") %>% 
+  glm(resolved ~ victim_age + victim_race + victim_sex, data = ., family = binomial()) 
 ```
 
+```{r}
+balt_murder_logfit %>% 
+  broom::tidy() %>% 
+  mutate(OR = exp(estimate)) %>%
+  select(term, log_OR = estimate, OR, p.value) %>% 
+  knitr::kable(digits = 3)
+```
+```{r}
+conf= exp(confint(balt_murder_logfit, level= 0.95))
+```
+
+
+Within the city of Baltimore,MD, the odds of solving a homicide case for a male victim is 0.426 times higher than the odds of solving a homicide case for a female victim, adjusting for the victim's sex and race. We are 95% confident that the true odds of solving a homicide case for a male victim within the Baltimore,MD is between 0.3241 and 0.5575.
