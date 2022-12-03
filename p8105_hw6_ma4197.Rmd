@@ -12,6 +12,53 @@ library(mgcv)
 library(rvest)
 ```
 
+##Problem 1
+
+*Data Loading and Cleaning*
+```{r}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+```
+
+*Bootstrap and Plotting Pt 1*
+```{r}
+weather_df %>% 
+  modelr::bootstrap(n = 1000) %>% 
+  mutate(
+    models = map(strap, ~lm(tmax ~ tmin, data = .x) ),
+    results = map(models, broom::glance)) %>% 
+  select(-strap, -models) %>% 
+  unnest(results) %>% 
+  ggplot(aes(x = r.squared)) + geom_density()
+```
+*Plotting Pt 2*
+
+```{r}
+weather_df %>% 
+  modelr::bootstrap(n = 1000) %>% 
+  mutate(
+    models = map(strap, ~lm(tmax ~ tmin, data = .x) ),
+    results = map(models, broom::tidy)) %>% 
+  select(-strap, -models) %>% 
+  unnest(results) %>% 
+  select(id = `.id`, term, estimate) %>% 
+  pivot_wider(
+    names_from = term, 
+    values_from = estimate) %>% 
+  rename(beta0 = `(Intercept)`, beta1 = tmin) %>% 
+  mutate(log_b0b1 = log(beta0 * beta1)) %>% 
+  ggplot(aes(x = log_b0b1)) + geom_density()
+```
+
 ##Problem 2
 
 *Data Loading*
@@ -19,7 +66,6 @@ library(rvest)
 twp_data = read_csv(file= "./data/homicide-data.csv") %>%
 janitor::clean_names()
 ```
-
 
 *Data Cleaning*
 ```{r}
@@ -174,7 +220,7 @@ ggplot(aes(x=gaweeks, y=bwt))+
   geom_point(alpha= 0.25)
 ```
 *Description*
-A typical gestational period is approximately 40 weeks, with any infant born prior to 37 weeks being deemed as a preterm baby. Shorter gestational times are often associated with lower average birth weight of the child, and as a result we will hypothesize that the average birth weight of an infant will be dependent on the gestational period of the pregnancy. This graph above allows us to observe there is a possible relationship between the two variables as the shorter the gestational period is, the lower the birth weight is. Additionally, around 40 weeks there are increased observations around the average birth weight range (3000-4000 grams).
+A typical gestational period is approximately 40 weeks, with any infant born prior to 37 weeks being deemed as a preterm baby. Shorter gestational times are often associated with lower average birth weight of the child, and as a result we will hypothesize that the average birth weight of an infant will be dependent on the gestational period of the pregnancy. This graph above allows us to observe there is a possible positive relationship between the two variables as the shorter the gestational period is, the lower the birth weight is. Additionally, around 40 weeks there are increased observations around the average birth weight range (3000-4000 grams).
 
 *Residual and Prediction Modeling*
 
@@ -190,7 +236,10 @@ modelr::add_predictions(bwt_data, bwt_model)
 bwt_data %>% 
   modelr::add_residuals(bwt_model) %>% 
   modelr::add_predictions(bwt_model) %>% 
-  ggplot(aes(x = pred, y = resid)) + geom_point(alpha=0.25)
+  ggplot(aes(x = pred, y = resid)) + geom_point(alpha=0.25)+
+  ggtitle("Residual vs. Fitted Values for Birth Weight Model")+
+    labs(x = "Fitted",
+        y= "Residual")
 ```
 
 ```{r}
@@ -204,5 +253,100 @@ bwt_model %>%
 ```{r}
 bwt_modelme = lm(bwt~ blength + gaweeks, data = bwt_data)
 bwt_modeltwi = lm(bwt~ bhead + blength + babysex+ bhead*blength + bhead*babysex + blength*babysex + bhead*blength*babysex, data = bwt_data)
+```
+
+```{r}
+model_df = 
+  crossv_mc(bwt_data, 100) %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble))
+
+model_df = 
+  model_df %>% 
+  mutate(
+    bwt_model_n   = map(train, ~lm(bwt ~ gaweeks, data = .x))) %>% 
+  mutate(
+    bwt_modelme_n = map(train, ~lm(bwt ~ blength + gaweeks, data = .x))) %>% 
+  mutate(
+    rmse_model    = map2_dbl(bwt_model_n, test, ~rmse(model = .x, data = .y)),
+    rmse_modelme  = map2_dbl(bwt_modelme_n, test, ~rmse(model = .x, data = .y)))
+```
+
+```{r}
+model_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") %>% 
+  mutate(model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + geom_violin()+
+  ggtitle("Comparison of RMSE Values for Birth Weight Models")+
+    labs(x = "Model",
+        y= "RMSE")
+```
+
+*Description*
+RMSE was utilized to compare each of the three models due to it allowing for us to measure how far predicted values are from the observed values in a regression. With this, the larger the RMSE is, demonstrates a bigger difference between the predicted and observed values. As a result, it determines whether or not the regression is a good fit for the data. By observing violin graphs, it becomes evident that models with lower RSME are a better fit for the data. From this, model 3 (bwt_modeltwi) would be the best fit for this data from the models generated. However, the RMSE for each of the models, including 'bwt_modeltwi', are quite high showing that there may be an even better regression model that fits the data.
+
+
+
+
+
+*To Be Fixed*
+```{r}
+model_df = 
+  crossv_mc(bwt_data, 100) %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble))
+
+model_df = 
+  model_df %>% 
+  mutate(
+    bwt_model_n   = map(train, ~lm(bwt ~ gaweeks, data = .x))) %>% 
+  mutate(
+    bwt_modelme_n = map(train, ~lm(bwt ~ blength + gaweeks, data = .x))) %>% 
+  mutate(
+    bwt_modeltwi_n= map(train, ~lm(bwt ~ bhead + blength + babysex+ bhead*blength + bhead*babysex +                          blength*babysex + bhead*blength*babysex), data = .x))
+  mutate(
+    rmse_model    = map2_dbl(bwt_model_n, test, ~rmse(model = .x, data = .y)),
+    rmse_modelme  = map2_dbl(bwt_modelme_n, test, ~rmse(model = .x, data = .y))),
+    rmse_modeltwi = map2_dbl(bwt_modeltwi_n, test, ~rmse(model = .x, data = .y)))
+```
+
+
+```{r}
+model_df = 
+  crossv_mc(bwt_data, 100) %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble))
+
+model_df = 
+  model_df %>% 
+  mutate(
+    bwt_model_n   = map(train, ~lm(bwt ~ gaweeks, data = .x)),
+    bwt_modelme_n = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    bwt_modeltwi_n= map(train, ~lm(bwt ~ bhead + blength + babysex+ bhead*blength + bhead*babysex +                          blength*babysex + bhead*blength*babysex), data = .x)) %>% 
+  mutate(
+    rmse_model    = map2_dbl(bwt_model_n, test, ~rmse(model = .x, data = .y)),
+    rmse_modelme  = map2_dbl(bwt_modelme_n, test, ~rmse(model = .x, data = .y)),
+    rmse_modeltwi = map2_dbl(bwt_modeltwi_n, test, ~rmse(model = .x, data = .y)))
+```
+
+```{r}
+model_df = 
+  model_df %>% 
+  mutate(
+    bwt_model   = map(train, ~lm(bwt ~ gaweeks, data = .x)),
+    bwt_modelme = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    bwt_modeltwi= map(train, ~lm(bwt ~ bhead + blength + babysex+ bhead*blength + bhead*babysex +                          blength*babysex + bhead*blength*babysex), data = .x)) %>% 
+  mutate(
+    rmse_model    = map2_dbl(bwt_model, test, ~rmse(model = .x, data = .y)),
+    rmse_modelme  = map2_dbl(bwt_modelme, test, ~rmse(model = .x, data = .y)),
+    rmse_modeltwi = map2_dbl(bwt_modeltwi, test, ~rmse(model = .x, data = .y)))
 ```
 
