@@ -84,6 +84,9 @@ mutate(
     resolved = as.numeric(disposition == "Closed by arrest"))
 
 ```
+*Description*
+Within the original data set there are 52,719 observations and 12 variables. The variables names include: 'uid', 'reported_date', 'victim_last', 'victim_first', 'victim_race', 'victim_age', 'victim_sex', 'city', 'state', 'lat', 'lon', and 'disposition'. This data was collected across different police department reports from 50 of the largest cities in the United States from the past decade. However, cities 'Dallas,TX', "Phoenix,AZ', "Kansas City,MO' and 'Tulsa,AL' were dropped from the data set due to them not reporting victim race or being a data entry mistake. The variable 'victim_race' was filtered to look at only homicides that reported a 'White' or 'Black' victim. In addition to the homicides classified as 'Closed by arrest' were recoded numerically under a new variable 'resolved'. The final data set was named 'muder_df' and had 39,693 observations with 14 variables due to the generation of the 'city_state' and 'resolved' variables.
+
 *Checks*
 ```{r}
 murder_df %>% 
@@ -122,7 +125,7 @@ conf= exp(confint(balt_murder_logfit, level= 0.95))
 Within the city of Baltimore,MD, the odds of solving a homicide case for a male victim is 0.426 times higher than the odds of solving a homicide case for a female victim, adjusting for the victim's sex and race. We are 95% confident that the true odds of solving a homicide case for a male victim within the Baltimore,MD is between 0.3241 and 0.5575.
 
 *All City Pipeline*
-```{r}
+```{r, include=FALSE}
 allcity_murder=
   murder_df %>% 
   nest(data = -city_state) %>% 
@@ -255,6 +258,7 @@ bwt_modelme = lm(bwt~ blength + gaweeks, data = bwt_data)
 bwt_modeltwi = lm(bwt~ bhead + blength + babysex+ bhead*blength + bhead*babysex + blength*babysex + bhead*blength*babysex, data = bwt_data)
 ```
 
+*RMSE*
 ```{r}
 model_df = 
   crossv_mc(bwt_data, 100) %>% 
@@ -269,8 +273,11 @@ model_df =
   mutate(
     bwt_modelme_n = map(train, ~lm(bwt ~ blength + gaweeks, data = .x))) %>% 
   mutate(
-    rmse_model    = map2_dbl(bwt_model_n, test, ~rmse(model = .x, data = .y)),
-    rmse_modelme  = map2_dbl(bwt_modelme_n, test, ~rmse(model = .x, data = .y)))
+    bwt_modeltwi_n= map(train, ~lm(bwt ~ bhead + blength + babysex+ bhead*blength + bhead*babysex +                          blength*babysex + bhead*blength*babysex, data = .x))) %>% 
+  mutate(
+    rmse_original    = map2_dbl(bwt_model_n, test, ~rmse(model = .x, data = .y)),
+    rmse_maineffect  = map2_dbl(bwt_modelme_n, test, ~rmse(model = .x, data = .y)),
+    rmse_interaction = map2_dbl(bwt_modeltwi_n, test, ~rmse(model = .x, data = .y)))
 ```
 
 ```{r}
@@ -289,64 +296,5 @@ model_df %>%
 ```
 
 *Description*
-RMSE was utilized to compare each of the three models due to it allowing for us to measure how far predicted values are from the observed values in a regression. With this, the larger the RMSE is, demonstrates a bigger difference between the predicted and observed values. As a result, it determines whether or not the regression is a good fit for the data. By observing violin graphs, it becomes evident that models with lower RSME are a better fit for the data. From this, model 3 (bwt_modeltwi) would be the best fit for this data from the models generated. However, the RMSE for each of the models, including 'bwt_modeltwi', are quite high showing that there may be an even better regression model that fits the data.
-
-
-
-
-
-*To Be Fixed*
-```{r}
-model_df = 
-  crossv_mc(bwt_data, 100) %>% 
-  mutate(
-    train = map(train, as_tibble),
-    test = map(test, as_tibble))
-
-model_df = 
-  model_df %>% 
-  mutate(
-    bwt_model_n   = map(train, ~lm(bwt ~ gaweeks, data = .x))) %>% 
-  mutate(
-    bwt_modelme_n = map(train, ~lm(bwt ~ blength + gaweeks, data = .x))) %>% 
-  mutate(
-    bwt_modeltwi_n= map(train, ~lm(bwt ~ bhead + blength + babysex+ bhead*blength + bhead*babysex +                          blength*babysex + bhead*blength*babysex), data = .x))
-  mutate(
-    rmse_model    = map2_dbl(bwt_model_n, test, ~rmse(model = .x, data = .y)),
-    rmse_modelme  = map2_dbl(bwt_modelme_n, test, ~rmse(model = .x, data = .y))),
-    rmse_modeltwi = map2_dbl(bwt_modeltwi_n, test, ~rmse(model = .x, data = .y)))
-```
-
-
-```{r}
-model_df = 
-  crossv_mc(bwt_data, 100) %>% 
-  mutate(
-    train = map(train, as_tibble),
-    test = map(test, as_tibble))
-
-model_df = 
-  model_df %>% 
-  mutate(
-    bwt_model_n   = map(train, ~lm(bwt ~ gaweeks, data = .x)),
-    bwt_modelme_n = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
-    bwt_modeltwi_n= map(train, ~lm(bwt ~ bhead + blength + babysex+ bhead*blength + bhead*babysex +                          blength*babysex + bhead*blength*babysex), data = .x)) %>% 
-  mutate(
-    rmse_model    = map2_dbl(bwt_model_n, test, ~rmse(model = .x, data = .y)),
-    rmse_modelme  = map2_dbl(bwt_modelme_n, test, ~rmse(model = .x, data = .y)),
-    rmse_modeltwi = map2_dbl(bwt_modeltwi_n, test, ~rmse(model = .x, data = .y)))
-```
-
-```{r}
-model_df = 
-  model_df %>% 
-  mutate(
-    bwt_model   = map(train, ~lm(bwt ~ gaweeks, data = .x)),
-    bwt_modelme = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
-    bwt_modeltwi= map(train, ~lm(bwt ~ bhead + blength + babysex+ bhead*blength + bhead*babysex +                          blength*babysex + bhead*blength*babysex), data = .x)) %>% 
-  mutate(
-    rmse_model    = map2_dbl(bwt_model, test, ~rmse(model = .x, data = .y)),
-    rmse_modelme  = map2_dbl(bwt_modelme, test, ~rmse(model = .x, data = .y)),
-    rmse_modeltwi = map2_dbl(bwt_modeltwi, test, ~rmse(model = .x, data = .y)))
-```
+RMSE was utilized to compare each of the three models due to it allowing for us to measure how far predicted values are from the observed values in a regression. With this, the larger the RMSE is, demonstrates a bigger difference between the predicted and observed values. As a result, it determines whether or not the regression is a good fit for the data. By observing violin graphs, it becomes evident that models with lower RSME are a better fit for the data. From this, model 3 (bwt_modeltwi/ Interaction) would be the best fit for this data from the models generated. However, the RMSE for each of the models, including 'bwt_modeltwi/Interaction', are quite high showing that there may be a better regression model that fits the data.
 
