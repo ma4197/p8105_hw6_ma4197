@@ -121,3 +121,25 @@ The estimated OR of resolved homicides, comparing male victims and female victim
 
 
 ##Problem 3
+
+*Load and Clean Data*
+
+```{r}
+bwt_data = read_csv(file= "./data/birthweight.csv") %>%
+janitor::clean_names()
+```
+
+```{r}
+bwt_data %>% 
+tibble
+
+skimr::skim(bwt_data)
+```
+
+```{r}
+
+```
+**Notes:
+Mutate- babysex, frace, malform, and mrace to their defined character from hw
+Mutate- baby length from cm to inches
+Make model between birthweight and gestational age
