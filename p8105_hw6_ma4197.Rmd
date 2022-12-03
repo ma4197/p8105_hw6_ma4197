@@ -137,9 +137,72 @@ skimr::skim(bwt_data)
 ```
 
 ```{r}
-
+bwt_data=
+bwt_data %>% 
+mutate(babysex= recode(babysex, 
+                 "1"= "Male",
+                 "2"= "Female"),
+       frace= recode(frace,
+                     "1"= "White",
+                     "2"= "Black",
+                     "3"= "Asian",
+                     "4"= "Puerto Rican",
+                     "8"= "Other"),
+       mrace= recode(mrace,
+                     "1"= "White",
+                     "2"= "Black",
+                     "3"= "Asian",
+                     "4"= "Puerto Rican"),
+       malform= recode(malform,
+                       "0"= "Absent",
+                       "1"= "Present"))
+skimr::skim(bwt_data)
 ```
-**Notes:
-Mutate- babysex, frace, malform, and mrace to their defined character from hw
-Mutate- baby length from cm to inches
-Make model between birthweight and gestational age
+*Description*
+For the 'bwt_data' data set, there are 4342 observations and 20 variables. Within this, the variables 'babysex', 'frace', 'mrace', and 'malform' were recoded into their characteristic definitions rather than the numeric values originally assigned. With this, for variable 'frace' and 'mrace' there were no observations coded as 'Unknown', so it was dropped from the data set.
+
+*Linear Modeling*
+
+```{r}
+bwt_model= lm(bwt ~ gaweeks, data=bwt_data)
+```
+
+
+```{r}
+bwt_data %>% 
+ggplot(aes(x=gaweeks, y=bwt))+
+  geom_point(alpha= 0.25)
+```
+*Description*
+A typical gestational period is approximately 40 weeks, with any infant born prior to 37 weeks being deemed as a preterm baby. Shorter gestational times are often associated with lower average birth weight of the child, and as a result we will hypothesize that the average birth weight of an infant will be dependent on the gestational period of the pregnancy. This graph above allows us to observe there is a possible relationship between the two variables as the shorter the gestational period is, the lower the birth weight is. Additionally, around 40 weeks there are increased observations around the average birth weight range (3000-4000 grams).
+
+*Residual and Prediction Modeling*
+
+```{r}
+modelr::add_residuals(bwt_data, bwt_model)
+```
+
+```{r}
+modelr::add_predictions(bwt_data, bwt_model)
+```
+
+```{r}
+bwt_data %>% 
+  modelr::add_residuals(bwt_model) %>% 
+  modelr::add_predictions(bwt_model) %>% 
+  ggplot(aes(x = pred, y = resid)) + geom_point(alpha=0.25)
+```
+
+```{r}
+bwt_model %>% 
+  broom::tidy() %>% 
+  knitr::kable()
+```
+
+*Comparing Models*
+
+```{r}
+bwt_modelme = lm(bwt~ blength + gaweeks, data = bwt_data)
+bwt_modeltwi = lm(bwt~ bhead + blength + babysex+ bhead*blength + bhead*babysex + blength*babysex + bhead*blength*babysex, data = bwt_data)
+```
+
